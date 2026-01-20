@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-container">
+    <header class="dashboard-header">
+        <h1>CISF VPN Panel - User Dashboard</h1>
+        <button class="btn btn-logout" onclick="logout()">Logout</button>
+    </header>
+    
+    <div class="dashboard-content">
+        <div class="user-info-card">
+            <h2>User Information</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Username:</label>
+                    <span id="username">Loading...</span>
+                </div>
+                <div class="info-item">
+                    <label>Email:</label>
+                    <span id="email">Loading...</span>
+                </div>
+                <div class="info-item">
+                    <label>VPN Name:</label>
+                    <span id="vpnName">Loading...</span>
+                </div>
+                <div class="info-item">
+                    <label>VPN Public Key:</label>
+                    <span id="vpnKey" class="key-text">Loading...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="vpn-control-card">
+            <h2>VPN Control</h2>
+            <div class="vpn-status">
+                <span class="status-label">VPN Status:</span>
+                <span id="vpnStatus" class="status-badge">Loading...</span>
+            </div>
+            
+            <button id="toggleVpnBtn" class="btn btn-primary btn-large" onclick="toggleVPN()">
+                <span id="btnText">Loading...</span>
+            </button>
+            
+            <div class="session-info">
+                <p><strong>Important:</strong> Your VPN will be automatically disabled when you:</p>
+                <ul>
+                    <li>Logout from the portal</li>
+                    <li>Session expires (after 7 hours of inactivity)</li>
+                </ul>
+                <p>You will need to log in again and enable your VPN to restore access.</p>
+            </div>
+        </div>
+        
+        <div class="message" id="message"></div>
+    </div>
+</div>
+
+<script>
+let currentVpnStatus = false;
+
+async function loadUserInfo() {
+    try {
+        const response = await fetch('/api/user-info');
+        const data = await response.json();
+        
+        if (data.status) {
+            document.getElementById('username').textContent = data.user.username;
+            document.getElementById('email').textContent = data.user.email;
+            document.getElementById('vpnName').textContent = data.user.vpn_name;
+            document.getElementById('vpnKey').textContent = data.user.vpn_public_key;
+            
+            updateVpnStatus(data.user.vpn_status === 'enabled');
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to load user information', 'error');
+    }
+}
+
+function updateVpnStatus(enabled) {
+    currentVpnStatus = enabled;
+    const statusBadge = document.getElementById('vpnStatus');
+    const btnText = document.getElementById('btnText');
+    const toggleBtn = document.getElementById('toggleVpnBtn');
+    
+    if (enabled) {
+        statusBadge.textContent = 'ENABLED';
+        statusBadge.className = 'status-badge status-enabled';
+        btnText.textContent = 'Disable VPN';
+        toggleBtn.className = 'btn btn-danger btn-large';
+    } else {
+        statusBadge.textContent = 'DISABLED';
+        statusBadge.className = 'status-badge status-disabled';
+        btnText.textContent = 'Enable VPN';
+        toggleBtn.className = 'btn btn-success btn-large';
+    }
+}
+
+async function toggleVPN() {
+    const toggleBtn = document.getElementById('toggleVpnBtn');
+    toggleBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/toggle-vpn', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            updateVpnStatus(data.vpn_enabled);
+            showMessage(data.message, 'success');
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to toggle VPN', 'error');
+    } finally {
+        toggleBtn.disabled = false;
+    }
+}
+
+function logout() {
+    if (confirm('Logging out will automatically disable your VPN. Continue?')) {
+        window.location.href = '/logout';
+    }
+}
+
+function showMessage(message, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.textContent = message;
+    messageDiv.className = `message ${type}`;
+    messageDiv.style.display = 'block';
+    
+    setTimeout(() => {
+        messageDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Load user info on page load
+loadUserInfo();
+
+// Auto-refresh every 30 seconds
+setInterval(loadUserInfo, 30000);
+</script>
+{% endblock %}

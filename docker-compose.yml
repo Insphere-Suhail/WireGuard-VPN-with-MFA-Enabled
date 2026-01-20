@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  cisf-vpn-panel:
+    build: .
+    container_name: cisf-vpn-panel
+    ports:
+      - "80:80"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-change-this-to-a-random-secret-key}
+    restart: unless-stopped
+    networks:
+      - vpn-network
+
+networks:
+  vpn-network:
+    driver: bridge

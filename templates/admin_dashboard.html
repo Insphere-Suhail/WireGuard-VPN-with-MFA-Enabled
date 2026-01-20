@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="admin-dashboard-container">
+    <header class="dashboard-header">
+        <h1>CISF VPN Panel - Admin Console</h1>
+        <button class="btn btn-logout" onclick="logout()">Logout</button>
+    </header>
+    
+    <div class="admin-content">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('users')">User Management</button>
+            <button class="tab-btn" onclick="showTab('settings')">Settings</button>
+        </div>
+        
+        <!-- Users Tab -->
+        <div id="usersTab" class="tab-content active">
+            <div class="actions-bar">
+                <button class="btn btn-primary" onclick="showAddUserModal()">Add New User</button>
+                <button class="btn btn-secondary" onclick="syncPeers()">Sync WireGuard Peers</button>
+                <button class="btn btn-secondary" onclick="loadUsers()">Refresh</button>
+            </div>
+            
+            <div class="users-table-container">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>VPN Name</th>
+                            <th>VPN Status</th>
+                            <th>MFA</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr><td colspan="6">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Settings Tab -->
+        <div id="settingsTab" class="tab-content">
+            <div class="settings-section">
+                <h2>WireGuard API Configuration</h2>
+                <p>Update the WireGuard Dashboard API key. Requires MFA verification.</p>
+                
+                <div class="form-group">
+                    <label for="apiKey">API Key</label>
+                    <div class="api-key-container">
+                        <input type="password" id="apiKey" class="api-key-input" readonly>
+                        <button class="btn btn-secondary btn-sm" onclick="toggleApiKeyVisibility()">Show</button>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" onclick="updateApiKey()">Update API Key</button>
+            </div>
+        </div>
+        
+        <div class="message" id="message"></div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div id="addUserModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add New User</h2>
+            <span class="close" onclick="closeAddUserModal()">&times;</span>
+        </div>
+        
+        <form id="addUserForm" class="modal-form">
+            <div class="form-group">
+                <label for="newUsername">Username *</label>
+                <input type="text" id="newUsername" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="newEmail">Email *</label>
+                <input type="email" id="newEmail" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="newTempPassword">Temporary Password *</label>
+                <input type="password" id="newTempPassword" required>
+                <small>Min 8 characters, 1 number, 1 special character</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="newVpnPeerId">VPN Peer ID (Public Key) *</label>
+                <input type="text" id="newVpnPeerId" required>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="showPeersModal()">Select from WireGuard</button>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">Add User</button>
+                <button type="button" class="btn btn-secondary" onclick="closeAddUserModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Peers Selection Modal -->
+<div id="peersModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Select WireGuard Peer</h2>
+            <span class="close" onclick="closePeersModal()">&times;</span>
+        </div>
+        
+        <div class="peers-list" id="peersList">
+            Loading...
+        </div>
+    </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div id="resetPasswordModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Reset User Password</h2>
+            <span class="close" onclick="closeResetPasswordModal()">&times;</span>
+        </div>
+        
+        <form id="resetPasswordForm" class="modal-form">
+            <input type="hidden" id="resetUsername">
+            
+            <div class="form-group">
+                <label for="resetTempPassword">New Temporary Password *</label>
+                <input type="password" id="resetTempPassword" required>
+                <small>Min 8 characters, 1 number, 1 special character</small>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">Reset Password</button>
+                <button type="button" class="btn btn-secondary" onclick="closeResetPasswordModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Edit User</h2>
+            <span class="close" onclick="closeEditUserModal()">&times;</span>
+        </div>
+        
+        <form id="editUserForm" class="modal-form">
+            <input type="hidden" id="editOldUsername">
+            
+            <div class="form-group">
+                <label for="editUsername">Username *</label>
+                <input type="text" id="editUsername" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="editEmail">Email *</label>
+                <input type="email" id="editEmail" required>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">Update User</button>
+                <button type="button" class="btn btn-secondary" onclick="closeEditUserModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- New Peers Modal -->
+<div id="newPeersModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>New WireGuard Peers Not in Panel</h2>
+            <span class="close" onclick="closeNewPeersModal()">&times;</span>
+        </div>
+        
+        <div class="new-peers-info" style="padding: 20px;">
+            <p id="newPeersMessage" style="margin-bottom: 20px;"></p>
+            <div id="newPeersList" class="peers-list">
+                Loading...
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let apiKeyVisible = false;
+
+async function loadUsers() {
+    try {
+        const response = await fetch('/api/admin/users');
+        const data = await response.json();
+        
+        if (data.status) {
+            const tbody = document.getElementById('usersTableBody');
+            if (data.users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6">No users found</td></tr>';
+            } else {
+                tbody.innerHTML = data.users.map(user => `
+                    <tr>
+                        <td>${user.username}</td>
+                        <td>${user.email}</td>
+                        <td>${user.vpn_name}</td>
+                        <td><span class="status-badge ${user.vpn_status === 'enabled' ? 'status-enabled' : 'status-disabled'}">${user.vpn_status.toUpperCase()}</span></td>
+                        <td>${user.mfa_enabled ? '✓' : '✗'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-secondary" onclick="editUser('${user.username}', '${user.email}')">Edit</button>
+                            <button class="btn btn-sm btn-secondary" onclick="resetUserPassword('${user.username}')">Reset Password</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteUser('${user.username}')">Delete</button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to load users', 'error');
+    }
+}
+
+function showTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    if (tab === 'users') {
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        document.getElementById('usersTab').classList.add('active');
+    } else if (tab === 'settings') {
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        document.getElementById('settingsTab').classList.add('active');
+        loadApiKey();
+    }
+}
+
+async function loadApiKey() {
+    try {
+        const response = await fetch('/api/admin/get-api-key');
+        const data = await response.json();
+        
+        if (data.status) {
+            document.getElementById('apiKey').value = data.api_key;
+        }
+    } catch (error) {
+        showMessage('Failed to load API key', 'error');
+    }
+}
+
+function toggleApiKeyVisibility() {
+    const input = document.getElementById('apiKey');
+    apiKeyVisible = !apiKeyVisible;
+    input.type = apiKeyVisible ? 'text' : 'password';
+    event.target.textContent = apiKeyVisible ? 'Hide' : 'Show';
+}
+
+async function updateApiKey() {
+    const token = prompt('Enter your MFA code to update API key:');
+    if (!token) return;
+    
+    const newKey = prompt('Enter new API key:');
+    if (!newKey) return;
+    
+    try {
+        const response = await fetch('/api/admin/update-api-key', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({api_key: newKey})
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            showMessage('API key updated successfully', 'success');
+            loadApiKey();
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to update API key', 'error');
+    }
+}
+
+function showAddUserModal() {
+    document.getElementById('addUserModal').style.display = 'block';
+}
+
+function closeAddUserModal() {
+    document.getElementById('addUserModal').style.display = 'none';
+    document.getElementById('addUserForm').reset();
+}
+
+document.getElementById('addUserForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = {
+        username: document.getElementById('newUsername').value,
+        email: document.getElementById('newEmail').value,
+        temp_password: document.getElementById('newTempPassword').value,
+        vpn_peer_id: document.getElementById('newVpnPeerId').value
+    };
+    
+    try {
+        const response = await fetch('/api/admin/add-user', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(formData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            showMessage(data.message, 'success');
+            closeAddUserModal();
+            loadUsers();
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to add user', 'error');
+    }
+});
+
+async function syncPeers() {
+    try {
+        const response = await fetch('/api/admin/sync-peers');
+        const data = await response.json();
+        
+        if (data.status) {
+            showMessage(data.message, 'success');
+            
+            // If there are new peers, show them in a modal
+            if (data.new_peers_count > 0) {
+                showNewPeersModal(data.new_peers, data.new_peers_count, data.total_peers);
+            }
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to sync peers', 'error');
+    }
+}
+
+function showNewPeersModal(newPeers, newCount, totalCount) {
+    document.getElementById('newPeersMessage').innerHTML = `
+        <strong>Found ${totalCount} total peers in WireGuard</strong><br>
+        <strong>${newCount} peers are not yet added to the panel:</strong>
+    `;
+    
+    const peersList = document.getElementById('newPeersList');
+    peersList.innerHTML = newPeers.map(peer => `
+        <div class="peer-item" onclick="selectPeerForNewUser('${peer.id}', '${peer.name}')">
+            <strong>${peer.name}</strong><br>
+            <small>Peer ID: ${peer.id}</small><br>
+            <small>IP: ${peer.allowed_ip}</small><br>
+            <small>Last Handshake: ${peer.latest_handshake}</small>
+        </div>
+    `).join('');
+    
+    document.getElementById('newPeersModal').style.display = 'block';
+}
+
+function closeNewPeersModal() {
+    document.getElementById('newPeersModal').style.display = 'none';
+}
+
+function selectPeerForNewUser(peerId, peerName) {
+    closeNewPeersModal();
+    showAddUserModal();
+    document.getElementById('newVpnPeerId').value = peerId;
+    document.getElementById('newUsername').value = peerName.toLowerCase().replace(/\s+/g, '');
+    showMessage(`Selected peer: ${peerName}. Please add email and password.`, 'success');
+}
+
+async function showPeersModal() {
+    document.getElementById('peersModal').style.display = 'block';
+    
+    try {
+        const response = await fetch('/api/admin/sync-peers');
+        const data = await response.json();
+        
+        if (data.status) {
+            const peersList = document.getElementById('peersList');
+            peersList.innerHTML = data.peers.map(peer => `
+                <div class="peer-item" onclick="selectPeer('${peer.id}', '${peer.name}')">
+                    <strong>${peer.name}</strong><br>
+                    <small>${peer.id}</small><br>
+                    <small>IP: ${peer.allowed_ip}</small>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        document.getElementById('peersList').innerHTML = 'Failed to load peers';
+    }
+}
+
+function closePeersModal() {
+    document.getElementById('peersModal').style.display = 'none';
+}
+
+function selectPeer(peerId, peerName) {
+    document.getElementById('newVpnPeerId').value = peerId;
+    closePeersModal();
+    showMessage(`Selected: ${peerName}`, 'success');
+}
+
+function resetUserPassword(username) {
+    document.getElementById('resetUsername').value = username;
+    document.getElementById('resetPasswordModal').style.display = 'block';
+}
+
+function closeResetPasswordModal() {
+    document.getElementById('resetPasswordModal').style.display = 'none';
+    document.getElementById('resetPasswordForm').reset();
+}
+
+document.getElementById('resetPasswordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const username = document.getElementById('resetUsername').value;
+    const tempPassword = document.getElementById('resetTempPassword').value;
+    
+    try {
+        const response = await fetch('/api/admin/reset-user-password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, temp_password: tempPassword})
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            showMessage(data.message, 'success');
+            closeResetPasswordModal();
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to reset password', 'error');
+    }
+});
+
+function editUser(username, email) {
+    document.getElementById('editOldUsername').value = username;
+    document.getElementById('editUsername').value = username;
+    document.getElementById('editEmail').value = email;
+    document.getElementById('editUserModal').style.display = 'block';
+}
+
+function closeEditUserModal() {
+    document.getElementById('editUserModal').style.display = 'none';
+    document.getElementById('editUserForm').reset();
+}
+
+document.getElementById('editUserForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const oldUsername = document.getElementById('editOldUsername').value;
+    const newUsername = document.getElementById('editUsername').value;
+    const newEmail = document.getElementById('editEmail').value;
+    
+    try {
+        const response = await fetch('/api/admin/update-user', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                old_username: oldUsername,
+                new_username: newUsername,
+                new_email: newEmail
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            showMessage(data.message, 'success');
+            closeEditUserModal();
+            loadUsers();
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to update user', 'error');
+    }
+});
+
+async function deleteUser(username) {
+    if (!confirm(`Are you sure you want to delete user "${username}"? This will also disable their VPN access.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/admin/delete-user', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username})
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            showMessage(data.message, 'success');
+            loadUsers();
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('Failed to delete user', 'error');
+    }
+}
+
+function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+        window.location.href = '/logout';
+    }
+}
+
+function showMessage(message, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.textContent = message;
+    messageDiv.className = `message ${type}`;
+    messageDiv.style.display = 'block';
+    
+    setTimeout(() => {
+        messageDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+
+// Load users on page load
+loadUsers();
+</script>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="setup-container">
+    <div class="setup-box">
+        <h1>Setup Multi-Factor Authentication</h1>
+        <p class="subtitle">Enhance your account security</p>
+        
+        <div id="setupSteps">
+            <div class="step-section">
+                <h3>Step 1: Download an Authenticator App</h3>
+                <p>Download one of these authenticator apps on your mobile device:</p>
+                <ul class="app-list">
+                    <li><strong>Google Authenticator</strong>
+                        <ul>
+                            <li>iOS: <a href="https://apps.apple.com/app/google-authenticator/id388497605" target="_blank">App Store</a></li>
+                            <li>Android: <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2" target="_blank">Google Play</a></li>
+                        </ul>
+                    </li>
+                    <li><strong>Microsoft Authenticator</strong> (iOS/Android)</li>
+                    <li><strong>Authy</strong> (iOS/Android)</li>
+                </ul>
+            </div>
+            
+            <div class="step-section">
+                <h3>Step 2: Scan QR Code</h3>
+                <button class="btn btn-primary" onclick="generateMFA()">Generate QR Code</button>
+                
+                <div id="qrSection" style="display: none;">
+                    <div class="qr-container">
+                        <img id="qrCode" alt="QR Code">
+                    </div>
+                    <p class="manual-entry">
+                        Or enter this code manually:<br>
+                        <strong id="secretKey" class="secret-key"></strong>
+                    </p>
+                </div>
+            </div>
+            
+            <div class="step-section">
+                <h3>Step 3: Verify Setup</h3>
+                <p>Enter the 6-digit code from your authenticator app to confirm setup:</p>
+                
+                <form id="confirmForm" class="confirm-form">
+                    <div class="form-group">
+                        <label for="verifyToken">Verification Code</label>
+                        <input type="text" id="verifyToken" name="verifyToken" maxlength="6" pattern="[0-9]{6}" required autocomplete="one-time-code">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Confirm and Continue</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="message" id="message"></div>
+    </div>
+</div>
+
+<script>
+async function generateMFA() {
+    try {
+        const response = await fetch('/api/generate-mfa', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            document.getElementById('qrCode').src = data.qr_code;
+            document.getElementById('secretKey').textContent = data.secret;
+            document.getElementById('qrSection').style.display = 'block';
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('An error occurred. Please try again.', 'error');
+    }
+}
+
+document.getElementById('confirmForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const token = document.getElementById('verifyToken').value;
+    
+    try {
+        const response = await fetch('/api/confirm-mfa', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({token})
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            showMessage('MFA setup successful! Redirecting...', 'success');
+            setTimeout(() => {
+                window.location.href = '/reset-password';
+            }, 2000);
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('An error occurred. Please try again.', 'error');
+    }
+});
+
+function showMessage(message, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.textContent = message;
+    messageDiv.className = `message ${type}`;
+    messageDiv.style.display = 'block';
+}
+</script>
+{% endblock %}

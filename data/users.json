@@ -1,0 +1,15 @@
+{
+  "users": {
+    "admin": {
+      "email": "admin@cisf.gov.in",
+      "password": "scrypt:32768:8:1$wXHTEY2bQPt178NL$a3dbb6fc531d509fe08e964bc48682aadffa5b64b6761db8b9dad3030b2b48bfb91c9bfb1912c151b28cbf71c73c48ed9ecb59a128bb2d12f60f7e7ba810c31f",
+      "role": "admin",
+      "mfa_secret": "KZLBVTB5XE6UZ5XIFNJKX5LEBAOU6HZ2",
+      "mfa_enabled": true,
+      "must_reset_password": false,
+      "vpn_peer_id": null,
+      "vpn_enabled": false,
+      "created_at": "2026-01-17T18:38:41.842608"
+    }
+  }
+}

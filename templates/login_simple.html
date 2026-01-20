@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CISF VPN Panel - Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+        }
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #6c757d;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .message {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 6px;
+            display: none;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        .mfa-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #e0e0e0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>CISF VPN Panel</h1>
+        <p class="subtitle">Secure Access Portal</p>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username or Email</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit">Login</button>
+        </form>
+        
+        <div class="mfa-section" id="mfaSection">
+            <h3>Multi-Factor Authentication</h3>
+            <p>Enter the 6-digit code from your authenticator app</p>
+            
+            <form id="mfaForm">
+                <div class="form-group">
+                    <label for="mfaToken">MFA Code</label>
+                    <input type="text" id="mfaToken" maxlength="6" pattern="[0-9]{6}" required>
+                </div>
+                
+                <button type="submit">Verify</button>
+                <button type="button" onclick="cancelMFA()">Cancel</button>
+            </form>
+        </div>
+        
+        <div class="message" id="message"></div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                
+                const data = await response.json();
+                
+                if (data.status) {
+                    if (data.mfa_required) {
+                        document.getElementById('loginForm').style.display = 'none';
+                        document.getElementById('mfaSection').style.display = 'block';
+                    } else if (data.setup_required) {
+                        window.location.href = '/setup-mfa';
+                    }
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            } catch (error) {
+                showMessage('An error occurred. Please try again.', 'error');
+            }
+        });
+
+        document.getElementById('mfaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const token = document.getElementById('mfaToken').value;
+            
+            try {
+                const response = await fetch('/api/verify-mfa', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({token})
+                });
+                
+                const data = await response.json();
+                
+                if (data.status) {
+                    if (data.must_reset_password) {
+                        window.location.href = '/reset-password';
+                    } else {
+                        window.location.href = data.redirect;
+                    }
+                } else {
+                    showMessage(data.message, 'error');
+                }
+            } catch (error) {
+                showMessage('An error occurred. Please try again.', 'error');
+            }
+        });
+
+        function cancelMFA() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('mfaSection').style.display = 'none';
+            document.getElementById('mfaToken').value = '';
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = `message ${type}`;
+            messageDiv.style.display = 'block';
+        }
+        
+        console.log('Login page loaded successfully');
+    </script>
+</body>
+</html>

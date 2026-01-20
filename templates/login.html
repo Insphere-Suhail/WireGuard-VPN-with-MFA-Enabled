@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-box">
+        <div class="logo-section">
+            <h1>CISF VPN Panel</h1>
+            <p class="subtitle">Secure Access Portal</p>
+        </div>
+        
+        <form id="loginForm" class="login-form">
+            <div class="form-group">
+                <label for="username">Username or Email</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Login</button>
+        </form>
+        
+        <div id="mfaSection" class="mfa-section" style="display: none;">
+            <h3>Multi-Factor Authentication</h3>
+            <p>Enter the 6-digit code from your authenticator app</p>
+            
+            <form id="mfaForm" class="mfa-form">
+                <div class="form-group">
+                    <label for="mfaToken">MFA Code</label>
+                    <input type="text" id="mfaToken" name="mfaToken" maxlength="6" pattern="[0-9]{6}" required autocomplete="one-time-code">
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Verify</button>
+                <button type="button" class="btn btn-secondary" onclick="cancelMFA()">Cancel</button>
+            </form>
+        </div>
+        
+        <div class="message" id="message"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password})
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            if (data.mfa_required) {
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('mfaSection').style.display = 'block';
+            } else if (data.setup_required) {
+                window.location.href = '/setup-mfa';
+            }
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('An error occurred. Please try again.', 'error');
+    }
+});
+
+document.getElementById('mfaForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const token = document.getElementById('mfaToken').value;
+    
+    try {
+        const response = await fetch('/api/verify-mfa', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({token})
+        });
+        
+        const data = await response.json();
+        
+        if (data.status) {
+            if (data.must_reset_password) {
+                window.location.href = '/reset-password';
+            } else {
+                window.location.href = data.redirect;
+            }
+        } else {
+            showMessage(data.message, 'error');
+        }
+    } catch (error) {
+        showMessage('An error occurred. Please try again.', 'error');
+    }
+});
+
+function cancelMFA() {
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('mfaSection').style.display = 'none';
+    document.getElementById('mfaToken').value = '';
+}
+
+function showMessage(message, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.textContent = message;
+    messageDiv.className = `message ${type}`;
+    messageDiv.style.display = 'block';
+}
+</script>
+{% endblock %}
